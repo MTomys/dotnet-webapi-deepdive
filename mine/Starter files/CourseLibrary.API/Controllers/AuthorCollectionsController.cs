@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
 using CourseLibrary.API.Entities;
+using CourseLibrary.API.Helpers;
 using CourseLibrary.API.Models;
 using CourseLibrary.API.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -32,13 +33,30 @@ public class AuthorCollectionsController : ControllerBase
 
         await _courseLibraryRepository.SaveAsync();
 
-        return Ok();
+        var authorCollectionToReturn = _mapper
+            .Map<IEnumerable<AuthorDto>>(authorEntities);
+        var authorsIdsAsString = string.Join(",", authorCollectionToReturn.Select(a => a.Id));
+
+        return CreatedAtRoute("GetAuthorCollection",
+            new { authorIds = authorsIdsAsString },
+            authorCollectionToReturn);
     }
 
-    [HttpGet("({authorIds})")]
+    [HttpGet("({authorIds})", Name = "GetAuthorCollection")]
     public async Task<ActionResult<IEnumerable<AuthorForCreationDto>>> GetAuthorCollection(
-        [FromRoute] IEnumerable<Guid> authorIds)
+        [ModelBinder(BinderType = typeof(ArrayModelBinder))] [FromRoute]
+        IEnumerable<Guid> authorIds)
     {
-        
+        authorIds = authorIds.ToList();
+        var authorEntities = await _courseLibraryRepository
+            .GetAuthorsAsync(authorIds);
+
+        if (authorIds.Count() != authorEntities.Count())
+        {
+            return NotFound();
+        }
+
+        var authorsToReturn = _mapper.Map<IEnumerable<AuthorDto>>(authorEntities);
+        return Ok(authorsToReturn);
     }
 }
