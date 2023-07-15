@@ -1,10 +1,12 @@
 ﻿using CourseLibrary.API.DbContexts;
-using CourseLibrary.API.Entities; 
+using CourseLibrary.API.Entities;
+using CourseLibrary.API.Helpers;
+using CourseLibrary.API.ResourceParameters;
 using Microsoft.EntityFrameworkCore;
 
 namespace CourseLibrary.API.Services;
 
-public class CourseLibraryRepository : ICourseLibraryRepository 
+public class CourseLibraryRepository : ICourseLibraryRepository
 {
     private readonly CourseLibraryContext _context;
 
@@ -49,7 +51,7 @@ public class CourseLibraryRepository : ICourseLibraryRepository
 
 #pragma warning disable CS8603 // Possible null reference return.
         return await _context.Courses
-          .Where(c => c.AuthorId == authorId && c.Id == courseId).FirstOrDefaultAsync();
+            .Where(c => c.AuthorId == authorId && c.Id == courseId).FirstOrDefaultAsync();
 #pragma warning restore CS8603 // Possible null reference return.
     }
 
@@ -61,8 +63,8 @@ public class CourseLibraryRepository : ICourseLibraryRepository
         }
 
         return await _context.Courses
-                    .Where(c => c.AuthorId == authorId)
-                    .OrderBy(c => c.Title).ToListAsync();
+            .Where(c => c.AuthorId == authorId)
+            .OrderBy(c => c.Title).ToListAsync();
     }
 
     public void UpdateCourse(Course course)
@@ -108,6 +110,44 @@ public class CourseLibraryRepository : ICourseLibraryRepository
         _context.Authors.Remove(author);
     }
 
+    public async Task<PagedList<Author>> GetAuthorsAsync(AuthorsResourceParameters authorsResourceParameters)
+    {
+        if (authorsResourceParameters == null)
+        {
+            throw new ArgumentNullException(nameof(authorsResourceParameters));
+        }
+
+        var collection = _context.Authors as IQueryable<Author>;
+        if (!string.IsNullOrWhiteSpace(authorsResourceParameters.MainCategory))
+        {
+            authorsResourceParameters.MainCategory = authorsResourceParameters.MainCategory.Trim();
+            collection = collection.Where(a => a.MainCategory == authorsResourceParameters.MainCategory);
+        }
+
+        if (!string.IsNullOrWhiteSpace(authorsResourceParameters.SearchQuery))
+        {
+            authorsResourceParameters.SearchQuery = authorsResourceParameters.SearchQuery.Trim();
+            collection = collection.Where(a =>
+                a.MainCategory.Contains(authorsResourceParameters.SearchQuery) ||
+                a.FirstName.Contains(authorsResourceParameters.SearchQuery) ||
+                a.LastName.Contains(authorsResourceParameters.SearchQuery));
+        }
+
+        if (!string.IsNullOrWhiteSpace(authorsResourceParameters.OrderBy))
+        {
+            if (authorsResourceParameters.OrderBy.ToLowerInvariant() == "name")
+            {
+                collection = collection
+                    .OrderBy(a => a.FirstName)
+                    .ThenBy(a => a.LastName);
+            }
+        }
+
+        return await PagedList<Author>.CreateAsync(collection,
+            authorsResourceParameters.PageNumber,
+            authorsResourceParameters.PageSize);
+    }
+
     public async Task<Author> GetAuthorAsync(Guid authorId)
     {
         if (authorId == Guid.Empty)
@@ -120,7 +160,7 @@ public class CourseLibraryRepository : ICourseLibraryRepository
 #pragma warning restore CS8603 // Possible null reference return.
     }
 
-   
+
     public async Task<IEnumerable<Author>> GetAuthorsAsync()
     {
         return await _context.Authors.ToListAsync();
@@ -149,4 +189,3 @@ public class CourseLibraryRepository : ICourseLibraryRepository
         return (await _context.SaveChangesAsync() >= 0);
     }
 }
-
