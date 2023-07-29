@@ -1,5 +1,7 @@
-﻿using System.Text.Json;
+﻿using System.Collections;
+using System.Text.Json;
 using AutoMapper;
+using CourseLibrary.API.ActionConstraints;
 using CourseLibrary.API.Entities;
 using CourseLibrary.API.Helpers;
 using CourseLibrary.API.Models;
@@ -7,6 +9,7 @@ using CourseLibrary.API.ResourceParameters;
 using CourseLibrary.API.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
+using Microsoft.Net.Http.Headers;
 
 namespace CourseLibrary.API.Controllers;
 
@@ -73,7 +76,7 @@ public class AuthorsController : ControllerBase
             authorsResourceParameters,
             authorsFromRepo.HasNext,
             authorsFromRepo.HasPrevious);
-        
+
         var shapedAuthors = _mapper.Map<IEnumerable<AuthorDto>>(authorsFromRepo)
             .ShapeData(authorsResourceParameters.Fields);
 
@@ -118,10 +121,11 @@ public class AuthorsController : ControllerBase
         }
 
         if (hasPrevious)
-             links.Add(new
-             (CreateAuthorsResourceUri(authorsResourceParameters, ResourceUriType.PreviousPage),
-                 "previousPage",
-                 "GET"));       {
+            links.Add(new
+            (CreateAuthorsResourceUri(authorsResourceParameters, ResourceUriType.PreviousPage),
+                "previousPage",
+                "GET"));
+        {
         }
 
         return links;
@@ -168,35 +172,146 @@ public class AuthorsController : ControllerBase
         }
     }
 
+    [RequestHeaderMatchesMediaType("Accept", 
+        "application/json", 
+        "application/vnd.marvin.author.friendly+json")]
+    [Produces("application/json",
+        "application/vnd.marvin.author.friendly+json")]
     [HttpGet("{authorId}", Name = "GetAuthor")]
-    public async Task<IActionResult> GetAuthor(Guid authorId, string? fields)
+    public async Task<IActionResult> GetAuthorWithoutLinks(Guid authorId, 
+        string? fields)
     {
-        // get author from repo
-        var authorFromRepo = await _courseLibraryRepository.GetAuthorAsync(authorId);
-
-        if (!_propertyCheckerService.TypeHasProperties<AuthorDto>(fields))
+        if (!_propertyCheckerService.TypeHasProperties<AuthorDto>
+                (fields))
         {
             return BadRequest(
-                _problemDetailsFactory.CreateProblemDetails(HttpContext,
-                    statusCode: 400,
-                    detail:
-                    $"Not all requested data shaping fields exist on the resource: {fields}"));
+              _problemDetailsFactory.CreateProblemDetails(HttpContext,
+                  statusCode: 400,
+                  detail: $"Not all requested data shaping fields exist on " +
+                  $"the resource: {fields}"));
         }
+
+        // get author from repo
+        var authorFromRepo = await _courseLibraryRepository
+            .GetAuthorAsync(authorId);
 
         if (authorFromRepo == null)
         {
             return NotFound();
         }
 
-        var links = CreateLinksForAuthor(authorId, fields);
-        var linkedResourceToReturn = _mapper.Map<AuthorDto>(authorFromRepo)
+        // friendly author
+        var friendlyResourceToReturn = _mapper.Map<AuthorDto>(authorFromRepo)
+            .ShapeData(fields);
+
+        return Ok(friendlyResourceToReturn);
+    }
+
+    [RequestHeaderMatchesMediaType("Accept", 
+        "application/vnd.marvin.hateoas+json",
+        "application/vnd.marvin.author.friendly.hateoas+json")]
+    [Produces("application/vnd.marvin.hateoas+json",
+        "application/vnd.marvin.author.friendly.hateoas+json")]
+    [HttpGet("{authorId}")]
+    public async Task<IActionResult> GetAuthorWithLinks(Guid authorId, 
+        string? fields)
+    {
+        if (!_propertyCheckerService.TypeHasProperties<AuthorDto>
+                (fields))
+        {
+            return BadRequest(
+              _problemDetailsFactory.CreateProblemDetails(HttpContext,
+                  statusCode: 400,
+                  detail: $"Not all requested data shaping fields exist on " +
+                  $"the resource: {fields}"));
+        }
+
+        // get author from repo
+        var authorFromRepo = await _courseLibraryRepository
+            .GetAuthorAsync(authorId);
+
+        if (authorFromRepo == null)
+        {
+            return NotFound();
+        }
+        IEnumerable<LinkDto> links = CreateLinksForAuthor(authorId, fields);
+
+        // friendly author
+        var friendlyResourceToReturn = _mapper.Map<AuthorDto>(authorFromRepo)
             .ShapeData(fields) as IDictionary<string, object?>;
 
-        linkedResourceToReturn.Add("links", links);
+        friendlyResourceToReturn.Add("links", links);
 
-        // return author
-        return Ok(linkedResourceToReturn);
+        return Ok(friendlyResourceToReturn);
     }
+
+    [RequestHeaderMatchesMediaType("Accept", 
+        "application/vnd.marvin.author.full+json")]
+    [Produces("application/vnd.marvin.author.full+json")]
+    [HttpGet("{authorId}", Name = "GetAuthor")]
+    public async Task<IActionResult> GetFullAuthorWithoutLinks(Guid authorId, 
+        string? fields)
+    {
+        if (!_propertyCheckerService.TypeHasProperties<AuthorDto>
+                (fields))
+        {
+            return BadRequest(
+              _problemDetailsFactory.CreateProblemDetails(HttpContext,
+                  statusCode: 400,
+                  detail: $"Not all requested data shaping fields exist on " +
+                  $"the resource: {fields}"));
+        }
+
+        // get author from repo
+        var authorFromRepo = await _courseLibraryRepository
+            .GetAuthorAsync(authorId);
+
+        if (authorFromRepo == null)
+        {
+            return NotFound();
+        }
+
+        var fullResourceToReturn = _mapper.Map<AuthorFullDto>(authorFromRepo)
+            .ShapeData(fields);
+
+        return Ok(fullResourceToReturn);
+    }
+
+    [RequestHeaderMatchesMediaType("Accept", 
+        "application/vnd.marvin.author.full.hateoas+json")]
+    [Produces("application/vnd.marvin.author.full.hateoas+json")]
+    [HttpGet("{authorId}")]
+    public async Task<IActionResult> GetFullAuthorWithLinks(Guid authorId, 
+        string? fields)
+    {
+        if (!_propertyCheckerService.TypeHasProperties<AuthorDto>
+                (fields))
+        {
+            return BadRequest(
+              _problemDetailsFactory.CreateProblemDetails(HttpContext,
+                  statusCode: 400,
+                  detail: $"Not all requested data shaping fields exist on " +
+                  $"the resource: {fields}"));
+        }
+
+        // get author from repo
+        var authorFromRepo = await _courseLibraryRepository
+            .GetAuthorAsync(authorId);
+
+        if (authorFromRepo == null)
+        {
+            return NotFound();
+        }
+
+        IEnumerable<LinkDto> links = CreateLinksForAuthor(authorId, fields);
+
+        var fullResourceToReturn = _mapper.Map<AuthorFullDto>(authorFromRepo)
+            .ShapeData(fields) as IDictionary<string, object?>;
+
+        fullResourceToReturn.Add("links", links);
+        return Ok(fullResourceToReturn);
+    }
+
 
     private IEnumerable<LinkDto> CreateLinksForAuthor(Guid authorId, string? fields)
     {
@@ -230,7 +345,36 @@ public class AuthorsController : ControllerBase
         return links;
     }
 
-    [HttpPost(Name="CreateAuthor")]
+    [HttpPost(Name = "CreateAuthorWithDateOfDeath")]
+    [RequestHeaderMatchesMediaType("Content-Type",
+        "application/vnd.marvin.authorforcreationwithdateofdeath+json")]
+    [Consumes("application/vnd.marvin.authorforcreationwithdateofdeath+json")]
+    public async Task<IActionResult> CreateAuthorWithDateOfDeath(
+        AuthorForCreationWithDateOfDeathDto author)
+    {
+        var authorEntity = _mapper.Map<Author>(author);
+
+        _courseLibraryRepository.AddAuthor(authorEntity);
+        await _courseLibraryRepository.SaveAsync();
+
+        var authorToReturn = _mapper.Map<AuthorDto>(authorEntity);
+
+        var links = CreateLinksForAuthor(authorToReturn.Id, null);
+        var linkedResourceToReturn = authorToReturn.ShapeData(null)
+            as IDictionary<string, object?>;
+        linkedResourceToReturn.Add("links", links);
+
+        return CreatedAtRoute("GetAuthor",
+            new { authorId = linkedResourceToReturn["Id"] },
+            linkedResourceToReturn);
+    }
+
+    [HttpPost(Name = "CreateAuthor")]
+    [RequestHeaderMatchesMediaType("Content-Type",
+        "application/json",
+        "application/vnd.marvin.authorforcreation+json")]
+    [Consumes("application/json",
+        "application/vnd.marvin.authorforcreation+json")]
     public async Task<IActionResult> CreateAuthor(AuthorForCreationDto author)
     {
         var authorEntity = _mapper.Map<Author>(author);
