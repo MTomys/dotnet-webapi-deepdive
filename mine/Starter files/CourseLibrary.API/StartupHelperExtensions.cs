@@ -13,7 +13,14 @@ internal static class StartupHelperExtensions
     // Add services to the container
     public static WebApplication ConfigureServices(this WebApplicationBuilder builder)
     {
-        builder.Services.AddControllers(configure => { configure.ReturnHttpNotAcceptable = true; })
+        builder.Services.AddControllers(configure =>
+            {
+                configure.ReturnHttpNotAcceptable = true;
+                configure.CacheProfiles.Add("240SecondsCacheProfile", new CacheProfile()
+                {
+                    Duration = 240
+                });
+            })
             .AddNewtonsoftJson(sa =>
             {
                 sa.SerializerSettings.ContractResolver = new CamelCasePropertyNamesContractResolver();
@@ -69,6 +76,7 @@ internal static class StartupHelperExtensions
         builder.Services.AddAutoMapper(
             AppDomain.CurrentDomain.GetAssemblies());
 
+        builder.Services.AddResponseCaching();
 
         return builder.Build();
     }
@@ -91,6 +99,8 @@ internal static class StartupHelperExtensions
                 });
             });
         }
+
+        app.UseResponseCaching();
 
         app.UseAuthorization();
 
