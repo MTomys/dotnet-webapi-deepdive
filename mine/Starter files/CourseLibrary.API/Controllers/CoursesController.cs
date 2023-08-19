@@ -2,6 +2,7 @@
 using CourseLibrary.API.Entities;
 using CourseLibrary.API.Models;
 using CourseLibrary.API.Services;
+using Marvin.Cache.Headers;
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -11,7 +12,8 @@ namespace CourseLibrary.API.Controllers;
 
 [ApiController]
 [Route("api/authors/{authorId}/courses")]
-[ResponseCache(CacheProfileName = "240SecondsCacheProfile")]
+[HttpCacheExpiration(CacheLocation = CacheLocation.Public)]
+[HttpCacheValidation(MustRevalidate = true)]
 public class CoursesController : ControllerBase
 {
     private readonly ICourseLibraryRepository _courseLibraryRepository;
@@ -40,6 +42,8 @@ public class CoursesController : ControllerBase
     }
 
     [HttpGet("{courseId}", Name = "GetCourseForAuthor")]
+    [HttpCacheExpiration(CacheLocation = CacheLocation.Public, MaxAge = 1000)]
+    [HttpCacheValidation(MustRevalidate = false)]
     public async Task<ActionResult<CourseDto>> GetCourseForAuthor(Guid authorId, Guid courseId)
     {
         if (!await _courseLibraryRepository.AuthorExistsAsync(authorId))
@@ -58,7 +62,7 @@ public class CoursesController : ControllerBase
     }
 
 
-    [HttpPost(Name="CreateCourseForAuthor")]
+    [HttpPost(Name = "CreateCourseForAuthor")]
     public async Task<ActionResult<CourseDto>> CreateCourseForAuthor(
         Guid authorId, CourseForCreationDto course)
     {
